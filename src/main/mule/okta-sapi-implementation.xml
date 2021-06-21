@@ -1,0 +1,286 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:servicenow="http://www.mulesoft.org/schema/mule/servicenow" xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:json-logger="http://www.mulesoft.org/schema/mule/json-logger" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/json-logger http://www.mulesoft.org/schema/mule/json-logger/current/mule-json-logger.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/servicenow http://www.mulesoft.org/schema/mule/servicenow/current/mule-servicenow.xsd">
+	<json-logger:config name="JSON_Logger_Config" doc:name="JSON Logger Config" doc:id="913d5a84-3d5f-4d71-8541-5b8620178a81" applicationName="okta-authentication-sapi" applicationVersion="1.0" environment="dev" />
+	<http:request-config name="HTTP_Request_configuration" doc:name="HTTP Request configuration" doc:id="ec893061-17c0-4712-91f7-4db7fc5af3de" basePath="/api/v1" >
+		<http:request-connection protocol="HTTPS" host="dev-25511193.okta.com" port="443" connectionIdleTimeout="3000000"/>
+	</http:request-config>
+	<servicenow:config name="ServiceNow_Config" doc:name="ServiceNow Config" doc:id="9118fa7c-5c5d-40c0-8005-c49e67a1f624" >
+		<servicenow:basic-connection username="admin" password="Do4lhQsGAhH9" serviceAddress="https://dev90895.service-now.com" >
+			<servicenow:transport >
+				<servicenow:basic-auth-http-message-dispatcher-provider username="admin" password="Do4lhQsGAhH9" readTimeout="500000"/>
+			</servicenow:transport>
+		</servicenow:basic-connection>
+	</servicenow:config>
+	<flow name="okta-signin-Flow" doc:id="16ccf697-0237-4db3-8cb7-00d103f8d12d" >
+		<json-logger:logger doc:name="Logger" doc:id="0d2a6074-1fba-422c-83a9-e7c25405880a" message="Flow Started" config-ref="JSON_Logger_Config"/>
+		<ee:transform doc:name="Transform Message" doc:id="ead096d2-8789-4013-9fd6-efba32436355" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+  "username": payload[0].userName,
+  "password": payload[0].password,
+  "options": {
+    "multiOptionalFactorEnroll": true,
+    "warnBeforePasswordExpired": true
+  }  
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<try doc:name="Try" doc:id="8736fd15-08e2-47dd-9baa-cb1f6d7f5f63" >
+			<http:request method="POST" doc:name="Request" doc:id="81fa967a-f1f6-4b05-bc3a-1f490878a09f" config-ref="HTTP_Request_configuration" path="/authn">
+			<http:headers><![CDATA[#[output application/java
+---
+{
+	"Authorization" : "SSWS 00onTi57qlg6VO9a5tUlmrp6gAhu_7_9XsI2WRDtRw"
+}]]]></http:headers>
+		</http:request>
+			<error-handler >
+				<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="283e3d00-4444-4926-b59a-f725988665c9" type="HTTP:CONNECTIVITY, HTTP:FORBIDDEN">
+					<ee:transform doc:name="Transform Message" doc:id="7786d812-1e7e-40df-8e74-4b9132decd8d" >
+						<ee:message >
+						</ee:message>
+						<ee:variables >
+							<ee:set-variable variableName="invokeP" ><![CDATA[output application/xml
+ns inc http://www.service-now.com/incident
+---
+{
+  inc#insert: {
+    caller_id : "Shani",
+    comments:error.description,
+    short_description: error.description
+    
+  }
+}]]></ee:set-variable>
+						</ee:variables>
+					</ee:transform>
+					<servicenow:invoke doc:name="Invoke" doc:id="6f4fb9f0-a30c-4d8b-af78-a925b5b0815e" config-ref="ServiceNow_Config" service="incident" operation="insert" showReferenceValues="ALL"/>
+				</on-error-propagate>
+				<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="d4b7e546-c491-469b-9fbf-56c9a62c471c" >
+					<ee:transform doc:name="Transform Message" doc:id="ccab5a37-90a1-4535-8453-43bfdc58c669" >
+						<ee:message >
+							<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	descripton:error.description,
+	message:error.message
+}]]></ee:set-payload>
+						</ee:message>
+					</ee:transform>
+				</on-error-continue>
+			</error-handler>
+		</try>
+	</flow>
+	<flow name="okta-register-customer-flow" doc:id="33f6bb57-6f8f-4bad-a2c3-2d6ee1f78a9e" >
+		<json-logger:logger doc:name="Logger" doc:id="c0022487-dfef-41f2-bb6e-98331eb6fd0c" config-ref="JSON_Logger_Config" message="Flow Started"/>
+		<ee:transform doc:name="Transform Message" doc:id="3c7c3d77-e517-43cd-8a08-af2fd8524956" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+"profile": {
+"firstName": payload[0].firstName,
+"lastName": payload[0].lastName,
+"email": payload[0].emailId,
+"login": payload[0].emailId,
+"mobilePhone":payload[0].phoneNo
+},
+"credentials":{
+ "password":{ "value":payload[0].password },
+ "recovery_question": {
+      "question": payload[0].rquestion,
+      "answer": payload[0].ranswer
+    }
+} 
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<try doc:name="Try" doc:id="b26bd0de-9dee-41b4-8861-4fd65ad679d5" >
+			<http:request method="POST" doc:name="Request" doc:id="5e5d5b0a-e713-4b29-97c3-5e76988031b3" config-ref="HTTP_Request_configuration" path="/users">
+			<http:headers><![CDATA[#[output application/java
+---
+{
+	"Authorization" : "SSWS 00onTi57qlg6VO9a5tUlmrp6gAhu_7_9XsI2WRDtRw"
+}]]]></http:headers>
+		</http:request>
+			<error-handler >
+				<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="0d2b54b0-4c42-4688-8e1b-6c01c8af89f7" type="HTTP:CONNECTIVITY, HTTP:FORBIDDEN">
+					<ee:transform doc:name="Transform Message" doc:id="b04383f3-7338-442c-92c2-18bc5711f756" >
+						<ee:message >
+						</ee:message>
+						<ee:variables >
+							<ee:set-variable variableName="invoke" ><![CDATA[output application/xml
+ns inc http://www.service-now.com/incident
+---
+{
+  inc#insert: {
+    caller_id : "Shani",
+    comments:error.description,
+    short_description: error.description
+    
+  }
+}]]></ee:set-variable>
+						</ee:variables>
+					</ee:transform>
+					<servicenow:invoke doc:name="Invoke" doc:id="c984bf39-97b3-4d82-90d1-afc5e4adf80a" config-ref="ServiceNow_Config" service="incident" operation="insert" showReferenceValues="ALL">
+						<servicenow:message >
+							<servicenow:body ><![CDATA[#[vars.invoke]]]></servicenow:body>
+						</servicenow:message>
+					</servicenow:invoke>
+				</on-error-propagate>
+				<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="246f275c-e148-4c83-b362-585b0ccc84b7" type="ANY">
+					<ee:transform doc:name="Transform Message" doc:id="e6dc6166-2726-43b7-8de5-ded0200cb52b" >
+						<ee:message >
+							<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	descripton:error.description,
+	message:error.message
+}]]></ee:set-payload>
+						</ee:message>
+					</ee:transform>
+				</on-error-continue>
+			</error-handler>
+		</try>
+	</flow>
+	<flow name="okta-sapi-editprofileFlow" doc:id="5ca9c056-78a4-415a-804a-11ffa9967332" >
+		<json-logger:logger doc:name="Logger" doc:id="c296dc25-285e-4296-9f97-99e59cd55afd" config-ref="JSON_Logger_Config" message="flow started"/>
+		<set-variable value="#[payload[0].email]" doc:name="email" doc:id="360ec923-8fc6-4fee-a170-de144d897092" variableName="email"/>
+		<ee:transform doc:name="Transform Message" doc:id="3bed8439-a440-446f-8e97-9b01fcc8ecf1" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"profile":payload[0]
+	
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<set-variable value="#[payload]" doc:name="updatepayload" doc:id="fa15e765-09d7-44f3-a7f6-c9ba744f6c8e" variableName="updatepayload"/>
+		<logger level="INFO" doc:name="Logger" doc:id="6d63b129-c6c1-4cc6-9a7c-664a37c868f1" message="#[vars.email]"/>
+		<http:request method="GET" doc:name="Request" doc:id="c811ac25-0572-4544-bb51-6300c50bfe93" config-ref="HTTP_Request_configuration" path='/users'>
+			<http:headers ><![CDATA[#[output application/java
+---
+{
+	"Authorization" : "SSWS 00onTi57qlg6VO9a5tUlmrp6gAhu_7_9XsI2WRDtRw"
+}]]]></http:headers>
+			<http:query-params ><![CDATA[#[output application/java
+---
+{
+	"q" : vars.email
+}]]]></http:query-params>
+		</http:request>
+		<set-variable value="#[payload[0].id]" doc:name="userid" doc:id="5b87dd90-a2bb-49a4-a87e-671724721027" variableName="userid"/>
+		<http:request method="POST" doc:name="Request" doc:id="72969771-153b-4e61-81b6-5758ff5e219f" config-ref="HTTP_Request_configuration" path="/users/{userId}">
+			<http:body ><![CDATA[#[vars.updatepayload]]]></http:body>
+			<http:headers ><![CDATA[#[output application/java
+---
+{
+	"Authorization" : "SSWS 00onTi57qlg6VO9a5tUlmrp6gAhu_7_9XsI2WRDtRw"
+}]]]></http:headers>
+			<http:uri-params ><![CDATA[#[output application/java
+---
+{
+	"userId" : vars.userid
+}]]]></http:uri-params>
+		</http:request>
+	</flow>
+	<flow name="okta-sapi-resetpasswordFlow" doc:id="d82e4eb1-b7d1-4044-96f7-0c9555e6076b" >
+		<json-logger:logger doc:name="Logger" doc:id="4149a9f7-1202-4f4f-8ddd-d719d1889c96" config-ref="JSON_Logger_Config" message="FlowStarted"/>
+		<set-variable value="#[payload[0].email]" doc:name="Set Variable" doc:id="27d8531d-bc46-47be-8324-25b765fdf25f" variableName="email"/>
+		<ee:transform doc:name="Transform Message" doc:id="63197e3c-218d-4493-afcf-eaedc00397b2" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+  "credentials": {
+    "password" : { "value": payload[0].password }
+  }
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<set-variable value="#[payload]" doc:name="Set Variable" doc:id="1a9583f0-8a46-41bf-bf5d-c8ea4eb99b76" variableName="updatePassword"/>
+		<logger level="INFO" doc:name="Logger" doc:id="a2c61f4b-2ede-48cf-a146-edded7e17763" message="#[vars.email]"/>
+		<http:request method="GET" doc:name="Request" doc:id="16b1d319-2eba-459f-bdb1-6eb1bccef7b3" config-ref="HTTP_Request_configuration" path="/users">
+			<http:headers ><![CDATA[#[output application/java
+---
+{
+	"Authorization" : "SSWS 00onTi57qlg6VO9a5tUlmrp6gAhu_7_9XsI2WRDtRw"
+}]]]></http:headers>
+			<http:query-params ><![CDATA[#[output application/java
+---
+{
+	"q" : vars.email
+}]]]></http:query-params>
+		</http:request>
+		<set-variable value="#[payload[0].id]" doc:name="Set Variable" doc:id="23c24698-2942-4e6d-998d-e6d346763df6" variableName="userid"/>
+		<http:request method="POST" doc:name="Request" doc:id="0f07a05e-bf27-4de6-8695-85d2e9c3e3b1" config-ref="HTTP_Request_configuration" path="/users/{userId}">
+			<http:body ><![CDATA[#[vars.updatePassword]]]></http:body>
+			<http:headers ><![CDATA[#[output application/java
+---
+{
+	"Authorization" : "SSWS 00onTi57qlg6VO9a5tUlmrp6gAhu_7_9XsI2WRDtRw"
+}]]]></http:headers>
+			<http:uri-params ><![CDATA[#[output application/java
+---
+{
+	"userId" : vars.userid
+}]]]></http:uri-params>
+		</http:request>
+	</flow>
+	<flow name="okta-sapi-forgotpasswordFlow" doc:id="9bfee046-a7a9-4c10-a114-46f7f2ed2e44" >
+		<json-logger:logger doc:name="Logger" doc:id="c5725da1-0968-4131-838b-5232f14caf84" config-ref="JSON_Logger_Config" message="Flow Started"/>
+		<set-variable value="#[payload[0].email]" doc:name="email" doc:id="361b8502-8d47-41d1-810e-4eca8fc8c99b" variableName="email"/>
+		<ee:transform doc:name="Transform Message" doc:id="1c9a0784-14ac-4f4a-8c61-fc82fff8f368" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+  "password": { "value": payload[0].password }, 
+    "recovery_question": { "answer": payload[0].ranswer } 
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<set-variable value="#[payload]" doc:name="recoveryAnswer" doc:id="d315a912-9567-4e69-89c6-90192dc439e2" variableName="recoveryAnswerPayload"/>
+		<http:request method="GET" doc:name="Request" doc:id="ca688e92-ef4c-4cb3-b292-002ebababdb3" config-ref="HTTP_Request_configuration" path="/users">
+			<http:headers ><![CDATA[#[output application/java
+---
+{
+	"Authorization" : "SSWS 00onTi57qlg6VO9a5tUlmrp6gAhu_7_9XsI2WRDtRw"
+}]]]></http:headers>
+			<http:query-params ><![CDATA[#[output application/java
+---
+{
+	"q" : vars.email
+}]]]></http:query-params>
+		</http:request>
+		<set-variable value="#[payload[0].id]" doc:name="userid" doc:id="9262c137-8b7a-41ab-84b8-e03fb27cc902" variableName="userid"/>
+		<http:request method="POST" doc:name="Request" doc:id="5bb9a8a2-14f8-4f0c-9687-5c88e7183d2b" config-ref="HTTP_Request_configuration" path="/users/{userId}/credentials/forgot_password?sendEmail=false">
+			<http:body ><![CDATA[#[vars.recoveryAnswerPayload]]]></http:body>
+			<http:headers ><![CDATA[#[output application/java
+---
+{
+	"Authorization" : "SSWS 00onTi57qlg6VO9a5tUlmrp6gAhu_7_9XsI2WRDtRw"
+}]]]></http:headers>
+			<http:uri-params ><![CDATA[#[output application/java
+---
+{
+	"userId" : vars.userid
+}]]]></http:uri-params>
+		</http:request>
+	</flow>
+</mule>

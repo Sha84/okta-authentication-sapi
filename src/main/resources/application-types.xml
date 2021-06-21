@@ -1,0 +1,75 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<types:mule xmlns:types="http://www.mulesoft.org/schema/mule/types">
+  <types:catalog>
+    <types:type name="okta-signIN-json" format="json">
+      <types:shape format="weave" example="examples/oktasignin.json"><![CDATA[%dw 2.0
+
+type okta_signIN_json = {|
+  userName: String, 
+  password: String
+|} {"example": "{\\\"userName\\\":\\\"shanialif@gmail.com\\\",\\\"password\\\":\\\"jjjjjj\\\"}"}
+
+]]></types:shape>
+    </types:type>
+    <types:type name="okta-register-json" format="json">
+      <types:shape format="weave" example="examples/oktaregistercustomerwithrecovery.json"><![CDATA[%dw 2.0
+
+type okta_register_json = {|
+  firstName: String, 
+  lastName: String, 
+  emailId: String, 
+  phoneNo: String, 
+  rquestion: String, 
+  ranswer: String, 
+  password: String, 
+  "creationDate?": String, 
+  "createdBy?": String, 
+  "lastUpdatedDate?": String, 
+  "lastUpdatedBy?": String, 
+  statusId: Number {"typeId": "int"}
+|} {"example": "{\\\"firstName\\\":\\\"James\\\",\\\"lastName\\\":\\\"Isacc\\\",\\\"emailId\\\":\\\"james@abc.com\\\",\\\"phoneNo\\\":\\\"790587\\\",\\\"rquestion\\\":\\\"What is ur name\\\",\\\"ranswer\\\":\\\"Shani\\\",\\\"password\\\":\\\"rrrrr\\\",\\\"creationDate?\\\":\\\"2021-09-03\\\",\\\"createdBy?\\\":\\\"Ben\\\",\\\"lastUpdatedDate?\\\":\\\"2021-09-03\\\",\\\"lastUpdatedBy?\\\":\\\"John\\\",\\\"statusId\\\":1}"}
+
+]]></types:shape>
+    </types:type>
+    <types:type name="okta-reset-password-json" format="json">
+      <types:shape format="weave" example="examples/oktaresetpassword.json"><![CDATA[%dw 2.0
+
+type okta_reset_password_json = {|
+  userName: String, 
+  newPassword: String, 
+  password: String
+|} {"example": "{\\\"userName\\\":\\\"abc@example.com\\\",\\\"newPassword\\\":\\\"kkkkkkk\\\",\\\"password\\\":\\\"lllllll\\\"}"}
+
+]]></types:shape>
+    </types:type>
+  </types:catalog>
+  <types:enrichment select="#ead096d2-8789-4013-9fd6-efba32436355">
+    <types:processor-declaration>
+      <types:input-event>
+        <types:message>
+          <types:payload type="okta-signIN-json"/>
+        </types:message>
+      </types:input-event>
+    </types:processor-declaration>
+  </types:enrichment>
+  <types:enrichment select="#3c7c3d77-e517-43cd-8a08-af2fd8524956">
+    <types:processor-declaration>
+      <types:input-event>
+        <types:message>
+          <types:payload type="okta-register-json"/>
+        </types:message>
+      </types:input-event>
+    </types:processor-declaration>
+  </types:enrichment>
+  <types:enrichment select="#42256dbe-7aed-4793-b3c0-3d79c5229206">
+    <types:processor-declaration>
+      <types:input-event>
+        <types:message>
+          <types:payload type="okta-reset-password-json"/>
+        </types:message>
+      </types:input-event>
+    </types:processor-declaration>
+  </types:enrichment>
+  <types:enrichment select="#b04383f3-7338-442c-92c2-18bc5711f756"/>
+  <types:enrichment select="#7786d812-1e7e-40df-8e74-4b9132decd8d"/>
+</types:mule>

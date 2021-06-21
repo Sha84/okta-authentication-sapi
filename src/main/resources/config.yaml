@@ -1,17 +1,19 @@
 http:
-  port:8081
+  port: "8087"
+  protocol: "HTTP"
+  host: "0.0.0.0"
   
   
 
    
 jlogger:
-   applicationName:okta-authentication-sapi
-   applicationVersion:1.0
-   environment:dev
+   applicationName:"okta-authentication-sapi"
+   applicationVersion:"1.0"
+   environment:"dev"
    
 httprequest:
-    basepath:/api/v1
-    protocol:HTTPS
-    host:dev-25511193.okta.com
-    port:443
+    basepath: "/api/v1"
+    protocol: "HTTPS"
+    host: "dev-25511193.okta.com"
+    port: "443"
        
